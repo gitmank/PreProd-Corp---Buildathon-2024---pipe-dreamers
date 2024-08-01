@@ -129,5 +129,13 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-
+# python
 .venv/
+*.csv
+*.pkl
+*.pickle
+venv
+__pycache__
+*.pyc
+.venv
+.keras
