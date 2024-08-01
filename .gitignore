@@ -138,4 +138,4 @@ venv
 __pycache__
 *.pyc
 .venv
-.keras
+*.keras
