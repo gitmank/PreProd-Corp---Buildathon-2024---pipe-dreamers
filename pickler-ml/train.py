@@ -187,7 +187,7 @@ def feature_importance_analysis(X, y):
     }).sort_values('Score', ascending=False)
     return feature_scores
 
-def main(input_file, output_folder, target_feature, models_to_train, config_file=None):
+def train_data(input_file, output_folder, target_feature, models_to_train, config_file=None):
     # Default configuration
     config = {
         'test_size': 0.2,
@@ -240,14 +240,12 @@ def main(input_file, output_folder, target_feature, models_to_train, config_file
 
     results = train_and_evaluate_models(X_train, X_test, y_train, y_test, models_to_train, output_folder, config)
 
-    # Save results
-    with open(os.path.join(output_folder, 'results.json'), 'w') as f:
-        json.dump(results, f, indent=2)
-
     for model_name, metrics in results.items():
         logger.info(f"{model_name}:")
         for metric, value in metrics.items():
             logger.info(f"  {metric} = {value:.4f}")
+    
+    return results
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train and evaluate various ML models.")
@@ -260,4 +258,5 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, help="Path to a JSON configuration file.")
 
     args = parser.parse_args()
-    main(args.input_file, args.output_dir, args.target_feature, args.models, args.config)
+    results = train_data(args.input_file, args.output_dir, args.target_feature, args.models, args.config)
+    print(results)
