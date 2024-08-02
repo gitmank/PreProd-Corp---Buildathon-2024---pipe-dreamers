@@ -1,15 +1,24 @@
 # imports
-import os, json, time, requests
+import os, json, time, requests, pika
 from bson.objectid import ObjectId
-from utils import connectToMongo
+from utils import connectToMongo, connectToGCS
 import pandas as pd
 
 # connect to MongoDB
 db = connectToMongo()
 files = db['files']
 
+# # connect to GCS
+bucket = connectToGCS()
+
+# set up RabbitMQ
+print(os.getenv('RABBITMQ_URI', 'localhost'))
+connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+channel = connection.channel()
+channel.queue_declare(queue='extract-headers', durable=True, exclusive=False)
+
 # get file data
-def update_headers(id):
+def get_headers(id):
     """
     read file and update rows x columns in DB
     """
@@ -25,4 +34,19 @@ def update_headers(id):
         }), 200
     except Exception as e:
         print('Error getting file header - ', e)
-        
+
+
+def callback(ch, method, properties, body):
+    # get message data
+    body = json.loads(body)
+    email = body['email']
+    file_id = body['id']
+
+    # find record in mongodb with email and file_id
+    record = files.find_one({ 'email': email, 'id': file_id})
+    print(record)
+
+    ch.basic_ack(delivery_tag=method.delivery_tag)
+
+channel.basic_consume(queue='extract-headers', on_message_callback=callback, auto_ack=False)
+channel.start_consuming()
