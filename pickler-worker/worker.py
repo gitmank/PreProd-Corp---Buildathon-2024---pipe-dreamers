@@ -2,6 +2,7 @@
 import os, json, time, requests, pika
 from bson.objectid import ObjectId
 from utils import connectToMongo, connectToGCS
+from utils import get_signed_url
 import pandas as pd
 
 # connect to MongoDB
@@ -43,14 +44,29 @@ def callback(ch, method, properties, body):
     file_id = body['id']
 
     # find record in mongodb with email and file_id
-    record = files.find_one({ 'email': email, '_id': file_id})
-    print(record.get('name'))
-    object_name = record.get('objectName')
+    record = files.find_one({'email': email, '_id': ObjectId(file_id)})
+    if record is None:
+        print(f"Record with email {email} and id {file_id} not found")
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+        return
 
-    # # get signed url from GCS
-    # url = bucket.
+    object_name = record.get('objectName')
+    if not object_name:
+        print("Object name not found in the record")
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+        return
+
+    # get signed URL from GCS
+    signed_url = get_signed_url(bucket, object_name)
+    if not signed_url:
+        print("Failed to generate signed URL")
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+        return
+
+    print(f"Signed URL: {signed_url}")
 
     ch.basic_ack(delivery_tag=method.delivery_tag)
+
 
 channel.basic_consume(queue='extract-headers', on_message_callback=callback, auto_ack=False)
 channel.start_consuming()

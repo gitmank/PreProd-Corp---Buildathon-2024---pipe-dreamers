@@ -1,6 +1,7 @@
 import os
 from pymongo import MongoClient
 from google.cloud import storage
+from time import timedelta
 
 def connectToMongo():
     try:
@@ -46,3 +47,12 @@ def connectToGCS():
 #     except Exception as e:
 #         print('Error connecting to Redis - ', e)
 #         return None
+
+def get_signed_url(bucket, object_name, expiration_minutes=60):
+    try:
+        blob = bucket.blob(object_name)
+        signed_url = blob.generate_signed_url(expiration=timedelta(minutes=expiration_minutes))
+        return signed_url
+    except Exception as e:
+        print('Error generating signed URL - ', e)
+        return None
