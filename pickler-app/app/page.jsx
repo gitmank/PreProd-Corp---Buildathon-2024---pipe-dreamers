@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -24,6 +25,7 @@ const STATUS = {
 
 export default function Home() {
   const [status, setStatus] = useState(STATUS.DEFAULT);
+  const [user, loading] = useAuth();
   const router = useRouter();
 
   // event handlers
@@ -78,6 +80,28 @@ export default function Home() {
     }
     return true;
   };
+
+  if (loading) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-start gap-8 p-24">
+        <h1 className="text-4xl font-bold">Welcome to Pickler!</h1>
+        <Image src="/picklerick.png" width={100} height={100} />
+      </main>
+    );
+  }
+
+  if (user && !loading) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-start gap-8 p-24">
+        <h1 className="text-4xl font-bold">Welcome to Pickler!</h1>
+        <Image src="/picklerick.png" width={100} height={100} />
+        <h1>Hi {user?.email} 👋</h1>
+        <Button onClick={() => router.push("/dashboard")}>
+          Go to Dashboard
+        </Button>
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-start gap-8 p-24">

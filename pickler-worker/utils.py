@@ -5,7 +5,8 @@ from datetime import timedelta
 
 def connectToMongo():
     try:
-        client = MongoClient(os.getenv('MONGO_URI', 'mongodb://localhost:27017/alerts-db'))
+        print(os.getenv('MONGO_URI', 'none'))
+        client = MongoClient(os.getenv('MONGO_URI', 'mongodb://localhost:27017/pickler-db'))
         client.admin.command('ping')
         print("Successfully connected to MongoDB!")
         return client['pickler-db']

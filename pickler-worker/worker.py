@@ -8,6 +8,7 @@ import pandas as pd
 # connect to MongoDB
 db = connectToMongo()
 files = db['files']
+print(list(files.find({ '_id': ObjectId('66ac9b44b97f07f039839596') })))
 
 # # connect to GCS
 bucket = connectToGCS()

@@ -11,7 +11,7 @@ export async function GET(req, res) {
         const token = cookies(req).get(COOKIE_NAME).value;
         const { email } = jwt.verify(token, process.env.JWT_SECRET);
         const channel = await connectToMQ();
-        channel.publish('pickler', 'extract-headers', Buffer.from(JSON.stringify({ email, id })));
+        channel.publish('', 'extract-headers', Buffer.from(JSON.stringify({ email, id })));
         return NextResponse.json({ success: true }, { status: 200 });
     } catch (error) {
         console.error('queue error', error);

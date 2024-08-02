@@ -12,7 +12,7 @@ export async function POST(req, res) {
         let user = await User.findOne({ email })
         if (!user) {
             const hashedPassword = await bcrypt.hash(password, 10);
-            user = await User.create({ email, hashedPassword });
+            user = await User.create({ email, password: hashedPassword });
         }
         const token = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1w' });
         cookies().set('user-auth', token, { maxAge: 60 * 60 * 24 * 7 });

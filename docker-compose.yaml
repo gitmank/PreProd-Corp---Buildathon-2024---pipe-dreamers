@@ -52,17 +52,19 @@ services:
       retries: 5
     networks:
       - pickler-network
-  worker:
-    hostname: pickler-worker
-    container_name: pickler-worker
-    build: ./pickler-worker
-    restart: on-failure
-    environment:
-      - ./.env
-    expose:
-      - 5672
-    depends_on:
-      - rabbitmq
+  # worker:
+  #   hostname: pickler-worker
+  #   container_name: pickler-worker
+  #   build: ./pickler-worker
+  #   restart: on-failure
+  #   env_file:
+  #     - ./.env
+  #   expose:
+  #     - 5672
+  #     - 27017
+  #   depends_on:
+  #     - rabbitmq
+  #     - mongo
 networks:
   pickler-network:
     driver: bridge
