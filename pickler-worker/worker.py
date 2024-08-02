@@ -19,20 +19,19 @@ channel = connection.channel()
 channel.queue_declare(queue='extract-headers', durable=True, exclusive=False)
 
 # get file data
-def get_headers(id):
+def get_dimensions(url):
     """
     read file and update rows x columns in DB
     """
     try:
-        url = "https://dashboard.devscene.co/mock.csv"
         # get array of column names
         df = pd.read_csv(url)
         columns = df.columns.tolist()
-        return json.dumps({
+        return {
             'features': columns,
             'rows': df.shape[0],
             'columns': df.shape[1]
-        }), 200
+        }
     except Exception as e:
         print('Error getting file header - ', e)
 
@@ -62,8 +61,25 @@ def callback(ch, method, properties, body):
         print("Failed to generate signed URL")
         ch.basic_ack(delivery_tag=method.delivery_tag)
         return
+    
+    # get file dimensions using the signed URL
+    dimensions = get_dimensions(signed_url)
+    if dimensions is None:
+        print("Failed to get file dimensions")
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+        return
 
-    print(f"Signed URL: {signed_url}")
+    # update MongoDB record with file dimensions
+    files.update_one(
+        {'email': email, '_id': ObjectId(file_id)},
+        {'$set': {
+            'features': dimensions['features'],
+            'rows': dimensions['rows'],
+            'columns': dimensions['columns']
+        }}
+    )
+
+    print(f"Updated MongoDB record with dimensions: {dimensions}")
 
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
