@@ -57,14 +57,13 @@ services:
   #   container_name: pickler-worker
   #   build: ./pickler-worker
   #   restart: on-failure
-  #   env_file:
-  #     - ./.env
+  #   environment:
+  #     - MONGO_URI=mongodb://mongo
   #   expose:
   #     - 5672
   #     - 27017
   #   depends_on:
   #     - rabbitmq
-  #     - mongo
 networks:
   pickler-network:
     driver: bridge

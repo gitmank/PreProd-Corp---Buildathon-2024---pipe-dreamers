@@ -8,6 +8,7 @@ const COOKIE_NAME = 'user-auth';
 export async function POST(req, res) {
     try {
         const { id, form } = await req.json();
+        console.log(form);
         const token = cookies(req).get(COOKIE_NAME).value;
         const { email } = jwt.verify(token, process.env.JWT_SECRET);
         const channel = await connectToMQ();
