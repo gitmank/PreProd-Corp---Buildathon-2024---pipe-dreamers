@@ -133,7 +133,7 @@ def hyperparameter_tuning(model, X_train, y_train, n_iter=10, cv=3):
         return tuned_model.best_estimator_
     return model
 
-def train_and_evaluate_model(name, model, X_train, X_test, y_train, y_test, output_folder, config):
+def train_and_evaluate_model(name, model, X_train, X_test, y_train, y_test, output_folder, config, save_models):
     logger.info(f"Training {name}...")
     if config['hyperparameter_tuning']['enabled']:
         model = hyperparameter_tuning(model, X_train, y_train, 
@@ -152,31 +152,35 @@ def train_and_evaluate_model(name, model, X_train, X_test, y_train, y_test, outp
         model.fit(X_train, y_train, epochs=nn_config['epochs'], 
                   batch_size=nn_config['batch_size'], 
                   validation_split=0.2, callbacks=[early_stopping], verbose=0)
-        model_filename = f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.keras"
-        model.save(os.path.join(output_folder, model_filename))
+        if save_models:
+            model_filename = f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.keras"
+            model.save(os.path.join(output_folder, model_filename))
     else:
         model.fit(X_train, y_train)
-        model_filename = f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
-        with open(os.path.join(output_folder, model_filename), 'wb') as f:
-            pickle.dump(model, f)
+        if save_models:
+            model_filename = f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
+            with open(os.path.join(output_folder, model_filename), 'wb') as f:
+                pickle.dump(model, f)
     
     metrics = evaluate_model(model, X_test, y_test)
-    return name, metrics
+    return name, model, metrics
 
-def train_and_evaluate_models(X_train, X_test, y_train, y_test, models_to_train, output_folder, config):
+def train_and_evaluate_models(X_train, X_test, y_train, y_test, models_to_train, output_folder, config, save_models):
     results = {}
-    
+    trained_models = {}
+
     for name in models_to_train:
         if name == 'NeuralNetwork':
-            name, metrics = train_and_evaluate_model(name, None, X_train, X_test, y_train, y_test, output_folder, config)
+            name, model, metrics = train_and_evaluate_model(name, None, X_train, X_test, y_train, y_test, output_folder, config, save_models)
         elif name in AVAILABLE_MODELS:
-            name, metrics = train_and_evaluate_model(name, AVAILABLE_MODELS[name], X_train, X_test, y_train, y_test, output_folder, config)
+            name, model, metrics = train_and_evaluate_model(name, AVAILABLE_MODELS[name], X_train, X_test, y_train, y_test, output_folder, config, save_models)
         else:
             logger.warning(f"Model {name} not found in available models. Skipping.")
             continue
         results[name] = metrics
+        trained_models[name] = model
 
-    return results
+    return results, trained_models
 
 def feature_importance_analysis(X, y):
     selector = SelectKBest(score_func=f_classif, k='all')
@@ -187,7 +191,7 @@ def feature_importance_analysis(X, y):
     }).sort_values('Score', ascending=False)
     return feature_scores
 
-def train_data(input_file, output_folder, target_feature, models_to_train, config_file=None):
+def train_data(input_file, output_folder, target_feature, models_to_train, config_file=None, save_models=True):
     # Default configuration
     config = {
         'test_size': 0.2,
@@ -238,14 +242,14 @@ def train_data(input_file, output_folder, target_feature, models_to_train, confi
         selected_features = X_train.columns[selector.get_support()]
         logger.info(f"Selected top {k_best} features: {', '.join(selected_features)}")
 
-    results = train_and_evaluate_models(X_train, X_test, y_train, y_test, models_to_train, output_folder, config)
+    results, trained_models = train_and_evaluate_models(X_train, X_test, y_train, y_test, models_to_train, output_folder, config, save_models)
 
     for model_name, metrics in results.items():
         logger.info(f"{model_name}:")
         for metric, value in metrics.items():
             logger.info(f"  {metric} = {value:.4f}")
     
-    return results
+    return results, trained_models
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train and evaluate various ML models.")
@@ -256,7 +260,8 @@ if __name__ == "__main__":
                         default=list(AVAILABLE_MODELS.keys()) + ['NeuralNetwork'], 
                         help="List of models to train. If not provided, all models will be trained.")
     parser.add_argument('--config', type=str, help="Path to a JSON configuration file.")
+    parser.add_argument('--save_models', action='store_true', help="Flag to save trained models to disk.")
 
     args = parser.parse_args()
-    results = train_data(args.input_file, args.output_dir, args.target_feature, args.models, args.config)
+    results, trained_models = train_data(args.input_file, args.output_dir, args.target_feature, args.models, args.config, args.save_models)
     print(results)
