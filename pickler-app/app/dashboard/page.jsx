@@ -41,20 +41,20 @@ export default function Dashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    const fetchFiles = async () => {
-      try {
-        const response = await fetch("/api/protected/files");
-        if (response.ok) {
-          const data = await response.json();
-          setFiles(data.files);
-        }
-      } catch (error) {
-        console.error("Error fetching files", error);
-      }
-    };
-
     fetchFiles();
   }, []);
+
+  const fetchFiles = async () => {
+    try {
+      const response = await fetch("/api/protected/files");
+      if (response.ok) {
+        const data = await response.json();
+        setFiles(data.files);
+      }
+    } catch (error) {
+      console.error("Error fetching files", error);
+    }
+  };
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
@@ -81,6 +81,11 @@ export default function Dashboard() {
                   <PlusCircle className="h-3.5 w-3.5" />
                   <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
                     Upload File
+                  </span>
+                </Button>
+                <Button onClick={fetchFiles} size="sm" className="h-8 gap-1">
+                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                    {"🔄 Refresh"}
                   </span>
                 </Button>
               </div>

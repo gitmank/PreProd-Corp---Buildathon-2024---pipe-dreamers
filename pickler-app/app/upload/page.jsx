@@ -20,6 +20,7 @@ export default function LoginForm() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [status, setStatus] = useState(STATUS.DEFAULT);
   const [uploadURL, setUploadURL] = useState(null);
+  const [fileID, setFileID] = useState(null);
 
   const triggerInput = () => {
     const input = document.getElementById("file-input");
@@ -45,6 +46,7 @@ export default function LoginForm() {
         if (response.ok) {
           const data = await response.json();
           setUploadURL(data.url);
+          setFileID(data.id);
         }
       } catch (error) {
         console.error("Error fetching upload URL", error);
@@ -69,6 +71,7 @@ export default function LoginForm() {
         });
         if (response.ok) {
           setStatus(STATUS.UPLOADED);
+          queueFile();
           alert("File uploaded successfully");
         }
       } catch (error) {
@@ -79,6 +82,14 @@ export default function LoginForm() {
     };
     uploadFile();
   }, [uploadURL]);
+
+  const queueFile = async () => {
+    try {
+      await fetch(`/api/protected/files/extract?id=${fileID}`);
+    } catch (error) {
+      console.error("Error queuing file", error);
+    }
+  };
 
   return (
     <main className="flex items-center justify-center min-h-screen w-screen bg-[url('/picklerick.png')] bg-center">
