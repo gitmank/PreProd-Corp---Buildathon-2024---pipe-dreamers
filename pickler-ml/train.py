@@ -1,90 +1,120 @@
-import argparse
-import os
-import json
-import pickle
 import pandas as pd
 import numpy as np
+import pickle
+import os
+import warnings
+from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import BaggingClassifier, AdaBoostClassifier, RandomForestClassifier, StackingClassifier
-from sklearn.naive_bayes import GaussianNB
+from sklearn.ensemble import BaggingClassifier, RandomForestClassifier, AdaBoostClassifier, StackingClassifier
+from sklearn.linear_model import LogisticRegression
 from xgboost import XGBClassifier
 from sklearn.neural_network import MLPClassifier
-from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, mean_squared_error, root_mean_squared_error
 from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+import argparse
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(description="Train models with specified hyperparameters.")
-    parser.add_argument('input_file', type=str, help='Path to the input CSV or XLSX or XLS file.')
-    parser.add_argument('target_feature', type=str, help='The target feature for classification.')
-    parser.add_argument('--test_size', type=float, default=0.2, help='Proportion of the dataset to include in the test split (0.0 to 1.0)')
-    parser.add_argument('models_output', type=str, help='Folder to save the trained models.')
-    parser.add_argument('--models', nargs='+', default=['SVM', 'DecisionTree', 'Bagging', 'AdaBoost', 'XGBoost', 'Stacking', 'RandomForest', 'NeuralNetwork', 'NaiveBayes'], help='List of models to train.')
-    parser.add_argument('--hyperparameters_file', type=str, default='hyperparameters.json', help='Path to JSON file containing hyperparameters for models.')
-    args = parser.parse_args()
-    
-    return args 
+# Suppress TensorFlow and oneDNN warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
-def load_data(input_file, target_feature):
-    data = pd.read_csv(input_file)
+# Suppress specific warnings
+warnings.filterwarnings('ignore', category=FutureWarning, module='sklearn')
+warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
+warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow')
+
+AVAILABLE_MODELS = {
+    'SVM': make_pipeline(StandardScaler(), SVC()),
+    'DecisionTree': DecisionTreeClassifier(),
+    'Bagging': BaggingClassifier(),
+    'RandomForest': RandomForestClassifier(),
+    'AdaBoost': AdaBoostClassifier(),
+    'XGBoost': XGBClassifier(eval_metric='logloss'),
+    'Stacking': StackingClassifier(
+        estimators=[
+            ('rf', RandomForestClassifier()),
+            ('svm', make_pipeline(StandardScaler(), SVC()))
+        ],
+        final_estimator=LogisticRegression(max_iter=1000)
+    )
+}
+
+def load_data(file_path):
+    return pd.read_csv(file_path)
+
+def split_data(data, target_feature, test_size=0.2, random_state=42):
     X = data.drop(columns=[target_feature])
     y = data[target_feature]
-    return X, y
 
-def load_hyperparameters(file_path):
-    with open(file_path, 'r') as f:
-        return json.load(f)
+    if y.dtype == 'object':
+        le = LabelEncoder()
+        y = le.fit_transform(y)
 
-def train_models(X, y, models, hyperparameters, models_output, test_size):
-    os.makedirs(models_output, exist_ok=True)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
-    
-    model_objects = {
-        'SVM': SVC(**hyperparameters.get('SVM', {})),
-        'DecisionTree': DecisionTreeClassifier(**hyperparameters.get('DecisionTree', {})),
-        'Bagging': BaggingClassifier(estimator=DecisionTreeClassifier(), **hyperparameters.get('Bagging', {})),
-        'AdaBoost': AdaBoostClassifier(**hyperparameters.get('AdaBoost', {})),
-        'XGBoost': XGBClassifier(**hyperparameters.get('XGBoost', {})),
-        'Stacking': StackingClassifier(estimators=hyperparameters.get('Stacking', {}).get('estimators', [('rf', RandomForestClassifier()), ('svm', make_pipeline(StandardScaler(), SVC()))]),
-                                       final_estimator=hyperparameters.get('Stacking', {}).get('final_estimator', LogisticRegression(max_iter=1000)),
-                                       cv=hyperparameters.get('Stacking', {}).get('cv', 5)),
-        'RandomForest': RandomForestClassifier(**hyperparameters.get('RandomForest', {})),
-        'NeuralNetwork': MLPClassifier(**hyperparameters.get('NeuralNetwork', {})),
-        'NaiveBayes': GaussianNB()
-    }
-    
-    for model_name in models:
-        model = model_objects.get(model_name)
-        if model is not None:
-            try:
-                model.fit(X_train, y_train)
-                train_predictions = model.predict(X_train)
-                test_predictions = model.predict(X_test)
+    return train_test_split(X, y, test_size=test_size, random_state=random_state)
 
-                train_accuracy = accuracy_score(y_train, train_predictions)
-                test_accuracy = accuracy_score(y_test, test_predictions)
+def build_neural_network(input_dim):
+    model = Sequential([
+        tf.keras.Input(shape=(input_dim,)),
+        Dense(128, activation='relu'),
+        Dense(64, activation='relu'),
+        Dense(1, activation='sigmoid')
+    ])
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return model
 
-                print(f"{model_name} - Train Accuracy: {train_accuracy:.2f}, Test Accuracy: {test_accuracy:.2f}")
-                
-                model_path = os.path.join(models_output, f"{model_name}.pkl")
-                with open(model_path, 'wb') as file:
-                    pickle.dump(model, file)
-                print(f"Saved {model_name} model to {model_path}.")
-            except Exception as e:
-                print(f"Error training {model_name}: {str(e)}")
-        else:
-            print(f"Model {model_name} not found in model_objects dictionary")
+def evaluate_model(model, X_test, y_test):
+    y_pred = model.predict(X_test)
+    if hasattr(model, 'predict_proba'):
+        y_pred = np.argmax(model.predict_proba(X_test), axis=1)
+    accuracy = accuracy_score(y_test, y_pred)
+    rmse = root_mean_squared_error(y_test, y_pred)
+    return accuracy, rmse
 
-def main():
-    args = parse_arguments()
-    
-    hyperparameters = load_hyperparameters(args.hyperparameters_file)
-    
-    X, y = load_data(args.input_file, args.target_feature)
-    train_models(X, y, args.models, hyperparameters, args.models_output, args.test_size)
+def train_and_evaluate_models(X_train, X_test, y_train, y_test, models_to_train, output_folder):
+    results = {}
+    for name, model in AVAILABLE_MODELS.items():
+        if name in models_to_train:
+            model.fit(X_train, y_train)
+            accuracy, rmse = evaluate_model(model, X_test, y_test)
+            results[name] = {'accuracy': accuracy, 'rmse': rmse}
+            with open(os.path.join(output_folder, f'{name}.pkl'), 'wb') as f:
+                pickle.dump(model, f)
 
-if __name__ == '__main__':
-    main()
+    if 'NeuralNetwork' in models_to_train:
+        input_dim = X_train.shape[1]
+        nn_model = build_neural_network(input_dim)
+        nn_model.fit(X_train, y_train, epochs=50, batch_size=32, verbose=0)
+        nn_model.save(os.path.join(output_folder, 'NeuralNetwork.keras'))
+        nn_accuracy = nn_model.evaluate(X_test, y_test, verbose=0)[1]
+        nn_rmse = root_mean_squared_error(y_test, nn_model.predict(X_test).flatten())
+        results['NeuralNetwork'] = {'accuracy': nn_accuracy, 'rmse': nn_rmse}
+
+    return results
+
+def main(input_file, output_folder, target_feature, models_to_train):
+    data = load_data(input_file)
+    X_train, X_test, y_train, y_test = split_data(data, target_feature)
+
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    results = train_and_evaluate_models(X_train, X_test, y_train, y_test, models_to_train, output_folder)
+
+    for model_name, metrics in results.items():
+        print(f"{model_name}: Accuracy = {metrics['accuracy']:.4f}, RMSE = {metrics['rmse']:.4f}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train and evaluate various ML models.")
+    parser.add_argument('input_file', type=str, help="Path to the input CSV file.")
+    parser.add_argument('output_dir', type=str, default='models', help="Folder to save the trained models.")
+    parser.add_argument('--target_feature', type=str, default='target', help="The target feature for prediction.")
+    parser.add_argument('--models', type=str, nargs='+', choices=list(AVAILABLE_MODELS.keys()) + ['NeuralNetwork'], 
+                        default=list(AVAILABLE_MODELS.keys()) + ['NeuralNetwork'], 
+                        help="List of models to train. If not provided, all models will be trained.")
+
+    args = parser.parse_args()
+    main(args.input_file, args.output_dir, args.target_feature, args.models)
