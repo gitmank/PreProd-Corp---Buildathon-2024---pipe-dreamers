@@ -43,8 +43,12 @@ def callback(ch, method, properties, body):
     file_id = body['id']
 
     # find record in mongodb with email and file_id
-    record = files.find_one({ 'email': email, 'id': file_id})
-    print(record)
+    record = files.find_one({ 'email': email, '_id': file_id})
+    print(record.get('name'))
+    object_name = record.get('objectName')
+
+    # # get signed url from GCS
+    # url = bucket.
 
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
