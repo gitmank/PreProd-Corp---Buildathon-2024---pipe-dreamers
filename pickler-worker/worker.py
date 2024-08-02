@@ -8,7 +8,6 @@ import pandas as pd
 # connect to MongoDB
 db = connectToMongo()
 files = db['files']
-print(list(files.find({ '_id': ObjectId('66ac9b44b97f07f039839596') })))
 
 # # connect to GCS
 bucket = connectToGCS()
@@ -16,8 +15,8 @@ bucket = connectToGCS()
 # set up RabbitMQ
 RABBIT_URI = os.getenv('RABBITMQ_URI', 'localhost')
 connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBIT_URI))
-channel = connection.channel()
-channel.queue_declare(queue='extract-headers', durable=True, exclusive=False)
+channel_one = connection.channel()
+channel_one.queue_declare(queue='extract-headers', durable=True, exclusive=False)
 
 # get file data
 def get_dimensions(url):
@@ -44,7 +43,7 @@ def callback(ch, method, properties, body):
     file_id = body['id']
 
     # find record in mongodb with email and file_id
-    record = files.find_one({'email': email, '_id': ObjectId(file_id)})
+    record = files.find_one({'owner': email, '_id': ObjectId(file_id)})
     if record is None:
         print(f"Record with email {email} and id {file_id} not found")
         ch.basic_ack(delivery_tag=method.delivery_tag)
@@ -72,7 +71,7 @@ def callback(ch, method, properties, body):
 
     # update MongoDB record with file dimensions
     files.update_one(
-        {'email': email, '_id': ObjectId(file_id)},
+        {'owner': email, '_id': ObjectId(file_id)},
         {'$set': {
             'features': dimensions['features'],
             'rows': dimensions['rows'],
@@ -85,5 +84,5 @@ def callback(ch, method, properties, body):
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
 
-channel.basic_consume(queue='extract-headers', on_message_callback=callback, auto_ack=False)
-channel.start_consuming()
+channel_one.basic_consume(queue='extract-headers', on_message_callback=callback, auto_ack=False)
+channel_one.start_consuming()
