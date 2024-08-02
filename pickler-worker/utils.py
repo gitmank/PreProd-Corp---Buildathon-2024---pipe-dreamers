@@ -1,7 +1,7 @@
-import os
+import os, json
 from pymongo import MongoClient
 from google.cloud import storage
-from time import timedelta
+from datetime import timedelta
 
 def connectToMongo():
     try:
@@ -29,7 +29,7 @@ def verify_jwt(token=None):
     
 def connectToGCS():
     try:
-        client = storage.Client()
+        client = storage.Client.from_service_account_json(os.getenv('GOOGLE_APPLICATION_CREDENTIALS', 'creds.json'))
         bucket_name = os.getenv('GCS_BUCKET', 'pickler-bucket-test')
         bucket = client.bucket(bucket_name)
         print("Successfully connected to GCS!")

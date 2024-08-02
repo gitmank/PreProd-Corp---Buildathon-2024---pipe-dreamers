@@ -13,8 +13,8 @@ files = db['files']
 bucket = connectToGCS()
 
 # set up RabbitMQ
-print(os.getenv('RABBITMQ_URI', 'localhost'))
-connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+RABBIT_URI = os.getenv('RABBITMQ_URI', 'localhost')
+connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBIT_URI))
 channel = connection.channel()
 channel.queue_declare(queue='extract-headers', durable=True, exclusive=False)
 

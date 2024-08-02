@@ -1,0 +1,10 @@
+# secrets
+.env
+*.env
+
+# build and cache
+__pycache__
+venv
+.venv
+env
+*.csv

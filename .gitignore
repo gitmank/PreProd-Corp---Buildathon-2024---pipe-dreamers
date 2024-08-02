@@ -140,3 +140,4 @@ __pycache__
 .venv
 *.keras
 .DS_Store
+pickler-worker/creds.json
