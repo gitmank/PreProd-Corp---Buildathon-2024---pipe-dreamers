@@ -1,4 +1,4 @@
-import os, json
+import os, json, sys
 from pymongo import MongoClient
 from google.cloud import storage
 from datetime import timedelta
@@ -57,3 +57,19 @@ def get_signed_url(bucket, object_name, expiration_minutes=60):
     except Exception as e:
         print('Error generating signed URL - ', e)
         return None
+    
+
+def save_df_to_gcs(bucket, dataframe, object_name):
+    try:
+        # Convert dataframe to CSV
+        csv_data = dataframe.to_csv(index=False)
+        
+        # Create a new blob and upload the CSV data
+        blob = bucket.blob(object_name)
+        blob.upload_from_string(csv_data, content_type='text/csv')
+        
+        print(f"Successfully uploaded cleaned data to GCS as {object_name}")
+        return True
+    except Exception as e:
+        print('Error saving to GCS - ', e)
+        return False
