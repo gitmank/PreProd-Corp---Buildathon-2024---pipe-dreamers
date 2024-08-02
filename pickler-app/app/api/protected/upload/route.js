@@ -12,7 +12,7 @@ export async function POST(req, res) {
     try {
         await connectToDB();
         const { name, type, size } = await req.json();
-        const token = cookies(req).get('user-auth').value;
+        const token = cookies(req).get(COOKIE_NAME).value;
         const { email } = jwt.verify(token, process.env.JWT_SECRET);
         const objectName = `${name}-${Math.random().toString(16).substring(6)}`;
         // get presigned url
@@ -27,7 +27,7 @@ export async function POST(req, res) {
         });
         const file = new File({ name, objectName, owner: email, size, type });
         await file.save();
-        return NextResponse.json({ url }, { status: 200 });
+        return NextResponse.json({ url, id: file._id }, { status: 200 });
     } catch (error) {
         console.error('upload error', error);
         return NextResponse.json({ error: 'internal error' }, { status: 500 });

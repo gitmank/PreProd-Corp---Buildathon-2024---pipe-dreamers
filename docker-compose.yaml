@@ -12,6 +12,9 @@ services:
       - 3000
     networks:
       - pickler-network
+    depends_on:
+      - rabbitmq
+      - mongo
   rabbitmq:
     container_name: pickler-queue
     hostname: pickler-queue
@@ -26,6 +29,11 @@ services:
     expose:
       - 5672
       - 15672
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.stats().ok"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
     networks:
       - pickler-network
   mongo:
