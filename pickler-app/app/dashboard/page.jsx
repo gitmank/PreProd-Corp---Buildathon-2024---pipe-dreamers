@@ -144,6 +144,7 @@ export default function Dashboard() {
 }
 
 const FileRow = ({ file, setFiles }) => {
+  const router = useRouter();
   const handleDelete = async (id) => {
     try {
       await fetch(`/api/protected/files?id=${id}`, {
@@ -187,7 +188,11 @@ const FileRow = ({ file, setFiles }) => {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem>Clean</DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => router.push(`/clean?id=${file._id}`)}
+            >
+              Clean
+            </DropdownMenuItem>
             <DropdownMenuItem>Train</DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => handleDelete(file._id)}

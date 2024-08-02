@@ -5,6 +5,11 @@ import File from "@/models/FileModel";
 export async function GET(req, res) {
     try {
         await connectToDB();
+        const id = new URL(req.url).searchParams.get('id', null);
+        if (id) {
+            const fileData = await File.findById(id);
+            return NextResponse.json({ fileData }, { status: 200 });
+        }
         const files = await File.find();
         return NextResponse.json({ files }, { status: 200 });
     } catch (error) {
