@@ -1,0 +1,11 @@
+# node files
+node_modules
+
+# secrets
+.env.local
+.env.development.local
+*.env
+
+# nextjs build files
+.next
+out
