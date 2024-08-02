@@ -22,6 +22,7 @@
     "lucide-react": "^0.418.0",
     "mongoose": "^8.5.2",
     "next": "14.2.5",
+    "rabbitmq-client": "^4.6.0",
     "react": "^18",
     "react-dom": "^18",
     "tailwind-merge": "^2.4.0",
