@@ -17,7 +17,8 @@ def detect_file_type(file_path):
     elif ext in ['.parquet']:
         return 'parquet'
     else:
-        raise ValueError("Unsupported file format. Please use CSV, Excel, JSON, or Parquet files.")
+        # raise ValueError("Unsupported file format. Please use CSV, Excel, JSON, or Parquet files.")
+        return 'csv'
 
 def load_data(file_path, chunksize=None):
     file_type = detect_file_type(file_path)

@@ -193,7 +193,13 @@ const FileRow = ({ file, setFiles }) => {
             >
               Clean
             </DropdownMenuItem>
-            <DropdownMenuItem>Train</DropdownMenuItem>
+            {file.status === "cleaned" && (
+              <DropdownMenuItem
+                onClick={() => router.push(`/train?id=${file._id}`)}
+              >
+                Train
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               onClick={() => handleDelete(file._id)}
               className="text-red-400"
