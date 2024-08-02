@@ -83,8 +83,8 @@ def callback_one(ch, method, properties, body):
         {'$set': {
             'features': dimensions['features'],
             'rows': dimensions['rows'],
-            'columns': dimensions['columns']
-            'status': 'uploaded'
+            'columns': dimensions['columns'],
+            'status': 'uploaded',
         }}
     )
 
