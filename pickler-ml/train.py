@@ -36,19 +36,30 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 AVAILABLE_MODELS = {
-    'SVM': make_pipeline(StandardScaler(), SVC(probability=True)),
-    'DecisionTree': DecisionTreeClassifier(),
-    'Bagging': BaggingClassifier(),
-    'RandomForest': RandomForestClassifier(),
-    'AdaBoost': AdaBoostClassifier(),
-    'XGBoost': XGBClassifier(eval_metric='logloss'),
+    'SVM': make_pipeline(StandardScaler(), SVC(probability=True, C=1.0, gamma='scale', kernel='rbf')),
+    'DecisionTree': DecisionTreeClassifier(max_depth=5, min_samples_split=2, criterion='gini'),
+    'Bagging': BaggingClassifier(n_estimators=10, random_state=42),
+    'RandomForest': RandomForestClassifier(n_estimators=100, criterion='gini', max_samples=0.5),
+    'AdaBoost': AdaBoostClassifier(n_estimators=50, learning_rate=1.0, algorithm='SAMME'),
+    'XGBoost': XGBClassifier(eval_metric='logloss', learning_rate=0.1, max_depth=3, max_child_weight=1),
     'Stacking': StackingClassifier(
         estimators=[
             ('rf', RandomForestClassifier()),
             ('svm', make_pipeline(StandardScaler(), SVC(probability=True)))
         ],
-        final_estimator=LogisticRegression(max_iter=1000)
+        final_estimator=LogisticRegression(max_iter=1000),
+        cv=5
     )
+}
+
+HYPERPARAMETERS = {
+    'SVM': {'C': [0.1, 1.0, 10.0], 'gamma': ['scale', 'auto'], 'kernel': ['rbf', 'linear']},
+    'DecisionTree': {'max_depth': [3, 5, 7], 'min_samples_split': [2, 5, 10], 'criterion': ['gini', 'entropy']},
+    'Bagging': {'n_estimators': [5, 10, 20], 'random_state': [42]},
+    'RandomForest': {'n_estimators': [50, 100, 200], 'criterion': ['gini', 'entropy'], 'max_samples': [0.5, 0.7, 1.0]},
+    'AdaBoost': {'n_estimators': [30, 50, 70], 'learning_rate': [0.1, 1.0, 2.0], 'algorithm': ['SAMME', 'SAMME.R']},
+    'XGBoost': {'learning_rate': [0.01, 0.1, 0.3], 'max_depth': [3, 5, 7], 'max_child_weight': [1, 3, 5]},
+    'Stacking': {'cv': [3, 5, 7]}
 }
 
 def load_data(file_path):
@@ -77,14 +88,14 @@ def split_data(data, target_feature, test_size=0.2, random_state=42):
 
     return train_test_split(X, y, test_size=test_size, random_state=random_state)
 
-def build_neural_network(input_dim, num_classes):
-    model = Sequential([
-        tf.keras.Input(shape=(input_dim,)),
-        Dense(128, activation='relu'),
-        Dense(64, activation='relu'),
-        Dense(num_classes, activation='softmax')
-    ])
-    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+def build_neural_network(input_dim, num_classes, layers=[64, 32], activation='relu', learning_rate=0.001):
+    model = Sequential([tf.keras.Input(shape=(input_dim,))])
+    for units in layers:
+        model.add(Dense(units, activation=activation))
+    model.add(Dense(num_classes, activation='softmax'))
+    
+    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+    model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=['accuracy'])
     return model
 
 def evaluate_model(model, X_test, y_test):
@@ -114,55 +125,56 @@ def evaluate_model(model, X_test, y_test):
         'auc_roc': auc_roc
     }
 
-def hyperparameter_tuning(model, X_train, y_train):
-    param_distributions = {
-        'SVM': {'svc__C': [0.1, 1, 10], 'svc__kernel': ['rbf', 'linear']},
-        'DecisionTree': {'max_depth': [3, 5, 10], 'min_samples_split': [2, 5, 10]},
-        'RandomForest': {'n_estimators': [50, 100, 200], 'max_depth': [3, 5, 10]},
-        'XGBoost': {'n_estimators': [50, 100, 200], 'max_depth': [3, 5, 10], 'learning_rate': [0.01, 0.1, 0.3]}
-    }
-
+def hyperparameter_tuning(model, X_train, y_train, n_iter=10, cv=3):
     model_name = type(model).__name__
-    if model_name in param_distributions:
-        tuned_model = RandomizedSearchCV(model, param_distributions[model_name], n_iter=10, cv=3, n_jobs=-1)
+    if model_name in HYPERPARAMETERS:
+        tuned_model = RandomizedSearchCV(model, HYPERPARAMETERS[model_name], n_iter=n_iter, cv=cv, n_jobs=-1)
         tuned_model.fit(X_train, y_train)
         return tuned_model.best_estimator_
     return model
 
-def train_and_evaluate_model(name, model, X_train, X_test, y_train, y_test, output_folder):
+def train_and_evaluate_model(name, model, X_train, X_test, y_train, y_test, output_folder, config):
     logger.info(f"Training {name}...")
-    model = hyperparameter_tuning(model, X_train, y_train)
-    model.fit(X_train, y_train)
-    metrics = evaluate_model(model, X_test, y_test)
+    if config['hyperparameter_tuning']['enabled']:
+        model = hyperparameter_tuning(model, X_train, y_train, 
+                                      n_iter=config['hyperparameter_tuning']['n_iter'],
+                                      cv=config['hyperparameter_tuning']['cv'])
     
-    # Save model with versioning
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    model_filename = f"{name}_{timestamp}.pkl"
-    with open(os.path.join(output_folder, model_filename), 'wb') as f:
-        pickle.dump(model, f)
-    
-    return name, metrics
-
-def train_and_evaluate_models(X_train, X_test, y_train, y_test, models_to_train, output_folder):
-    results = {}
-    
-    for name, model in AVAILABLE_MODELS.items():
-        if name in models_to_train:
-            name, metrics = train_and_evaluate_model(name, model, X_train, X_test, y_train, y_test, output_folder)
-            results[name] = metrics
-
-    if 'NeuralNetwork' in models_to_train:
-        logger.info("Training Neural Network...")
+    if name == 'NeuralNetwork':
         input_dim = X_train.shape[1]
         num_classes = len(np.unique(y_train))
-        nn_model = build_neural_network(input_dim, num_classes)
+        nn_config = config['neural_network']
+        model = build_neural_network(input_dim, num_classes, 
+                                     layers=nn_config['layers'],
+                                     activation=nn_config['activation'],
+                                     learning_rate=nn_config['learning_rate'])
         early_stopping = EarlyStopping(monitor='val_loss', patience=5)
-        nn_model.fit(X_train, y_train, epochs=50, batch_size=32, validation_split=0.2, callbacks=[early_stopping], verbose=0)
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        nn_model.save(os.path.join(output_folder, f'NeuralNetwork_{timestamp}.keras'))
-        
-        results['NeuralNetwork'] = evaluate_model(nn_model, X_test, y_test)
+        model.fit(X_train, y_train, epochs=nn_config['epochs'], 
+                  batch_size=nn_config['batch_size'], 
+                  validation_split=0.2, callbacks=[early_stopping], verbose=0)
+        model_filename = f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.keras"
+        model.save(os.path.join(output_folder, model_filename))
+    else:
+        model.fit(X_train, y_train)
+        model_filename = f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
+        with open(os.path.join(output_folder, model_filename), 'wb') as f:
+            pickle.dump(model, f)
+    
+    metrics = evaluate_model(model, X_test, y_test)
+    return name, metrics
+
+def train_and_evaluate_models(X_train, X_test, y_train, y_test, models_to_train, output_folder, config):
+    results = {}
+    
+    for name in models_to_train:
+        if name == 'NeuralNetwork':
+            name, metrics = train_and_evaluate_model(name, None, X_train, X_test, y_train, y_test, output_folder, config)
+        elif name in AVAILABLE_MODELS:
+            name, metrics = train_and_evaluate_model(name, AVAILABLE_MODELS[name], X_train, X_test, y_train, y_test, output_folder, config)
+        else:
+            logger.warning(f"Model {name} not found in available models. Skipping.")
+            continue
+        results[name] = metrics
 
     return results
 
@@ -190,9 +202,11 @@ def main(input_file, output_folder, target_feature, models_to_train, config_file
             'cv': 3
         },
         'neural_network': {
-            'epochs': 50,
+            'layers': [64, 32],
+            'activation': 'relu',
+            'learning_rate': 0.001,
             'batch_size': 32,
-            'early_stopping_patience': 5
+            'epochs': 100
         }
     }
 
@@ -224,40 +238,7 @@ def main(input_file, output_folder, target_feature, models_to_train, config_file
         selected_features = X_train.columns[selector.get_support()]
         logger.info(f"Selected top {k_best} features: {', '.join(selected_features)}")
 
-    # Update hyperparameter tuning settings
-    if config['hyperparameter_tuning']['enabled']:
-        global hyperparameter_tuning
-        def hyperparameter_tuning(model, X_train, y_train):
-            param_distributions = {
-                'SVM': {'svc__C': [0.1, 1, 10], 'svc__kernel': ['rbf', 'linear']},
-                'DecisionTree': {'max_depth': [3, 5, 10], 'min_samples_split': [2, 5, 10]},
-                'RandomForest': {'n_estimators': [50, 100, 200], 'max_depth': [3, 5, 10]},
-                'XGBoost': {'n_estimators': [50, 100, 200], 'max_depth': [3, 5, 10], 'learning_rate': [0.01, 0.1, 0.3]}
-            }
-
-            model_name = type(model).__name__
-            if model_name in param_distributions:
-                tuned_model = RandomizedSearchCV(model, param_distributions[model_name], 
-                                                 n_iter=config['hyperparameter_tuning']['n_iter'], 
-                                                 cv=config['hyperparameter_tuning']['cv'], 
-                                                 n_jobs=-1)
-                tuned_model.fit(X_train, y_train)
-                return tuned_model.best_estimator_
-            return model
-
-    # Update neural network settings
-    global build_neural_network
-    def build_neural_network(input_dim, num_classes):
-        model = Sequential([
-            tf.keras.Input(shape=(input_dim,)),
-            Dense(128, activation='relu'),
-            Dense(64, activation='relu'),
-            Dense(num_classes, activation='softmax')
-        ])
-        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-        return model
-
-    results = train_and_evaluate_models(X_train, X_test, y_train, y_test, models_to_train, output_folder)
+    results = train_and_evaluate_models(X_train, X_test, y_train, y_test, models_to_train, output_folder, config)
 
     # Save results
     with open(os.path.join(output_folder, 'results.json'), 'w') as f:
